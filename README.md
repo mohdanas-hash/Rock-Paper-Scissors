@@ -1,3 +1,15 @@
+# RPS://PROTOCOL — Adaptive Rock Paper Scissors
+
+A responsive cyberpunk-themed Rock-Paper-Scissors web app featuring an adaptive AI algorithm, built-in Web Audio synthesis, interactive statistics, and HTML5 Canvas particle effects.
+
+## 🚀 Tech Stack
+
+- **HTML5 & CSS3** — Responsive Grid/Flexbox layout with CSS variables and custom animations.
+- **Vanilla JavaScript (ES6+)** — Zero-dependency game logic.
+- **Order-1 Markov Chain AI** — Learns and adapts to player pattern history.
+- **Web Audio API** — Synthesizes sound FX directly in the browser without external media assets.
+- **HTML5 Canvas API** — Renders victory and defeat particle explosions.
+- **LocalStorage API** — Persists lifetime player statistics across browser sessions.
 # Rock-Paper-Scissors
 This is a classic Rock‑Paper‑Scissors game implemented in C++. The player competes against the computer, which makes random choices. The game keeps track of wins, losses, and draws, making it a fun way to practice basic programming concepts like conditionals, loops, and random number generation.
 🛠️ Languages & Tech Stack Used

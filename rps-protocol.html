@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RPS://PROTOCOL — Adaptive Rock Paper Scissors</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#090b10;
+    --bg-grid: #0d1017;
+    --surface:#12161f;
+    --surface-2:#171c27;
+    --line:#232a38;
+    --line-soft:#1a2028;
+    --text:#e7ecf2;
+    --muted:#7b8494;
+    --muted-2:#4d5566;
+    --cyan:#4ce0d2;
+    --cyan-dim: rgba(76,224,210,0.12);
+    --magenta:#ff4d6d;
+    --magenta-dim: rgba(255,77,109,0.12);
+    --amber:#ffb020;
+    --amber-dim: rgba(255,176,32,0.12);
+    --mono: 'JetBrains Mono', ui-monospace, monospace;
+    --sans: 'Inter', system-ui, sans-serif;
+    --radius: 12px;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(1200px 600px at 50% -10%, rgba(76,224,210,0.06), transparent 60%),
+      radial-gradient(900px 500px at 100% 100%, rgba(255,77,109,0.05), transparent 60%),
+      var(--bg);
+    background-attachment: fixed;
+    color:var(--text);
+    font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;
+    min-height:100%;
+  }
+  body::before{
+    content:"";
+    position:fixed; inset:0;
+    background-image:
+      linear-gradient(var(--bg-grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--bg-grid) 1px, transparent 1px);
+    background-size: 42px 42px;
+    opacity:0.35;
+    pointer-events:none;
+    z-index:0;
+  }
+  ::selection{ background: var(--cyan); color:#03110f; }
+  button{ font-family:inherit; }
+  h1,h2,h3{ margin:0; font-family:var(--mono); }
+
+  .app{ position:relative; z-index:1; display:flex; flex-direction:column; min-height:100vh; }
+
+  /* ---------- Topbar ---------- */
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 24px;
+    border-bottom:1px solid var(--line-soft);
+    background:rgba(9,11,16,0.7);
+    backdrop-filter: blur(6px);
+    position:sticky; top:0; z-index:10;
+  }
+  .brand{ font-family:var(--mono); font-weight:800; letter-spacing:0.5px; font-size:18px; }
+  .brand span{ color:var(--cyan); }
+  .topbar-meta{ display:flex; gap:10px; align-items:center; }
+  .badge{
+    font-family:var(--mono); font-size:11px; letter-spacing:0.08em;
+    padding:6px 10px; border-radius:999px; border:1px solid var(--line);
+    color:var(--muted); background:var(--surface);
+  }
+  .badge.live{ color:var(--cyan); border-color:rgba(76,224,210,0.35); }
+  .badge.live::before{
+    content:""; display:inline-block; width:6px; height:6px; border-radius:50%;
+    background:var(--cyan); margin-right:6px; box-shadow:0 0 8px var(--cyan);
+    animation:pulseDot 1.6s ease-in-out infinite;
+  }
+  @keyframes pulseDot{ 0%,100%{opacity:1;} 50%{opacity:0.25;} }
+
+  /* ---------- Layout ---------- */
+  .layout{
+    flex:1;
+    display:grid;
+    grid-template-columns: 250px minmax(0,1fr) 280px;
+    gap:18px;
+    max-width:1360px;
+    width:100%;
+    margin:0 auto;
+    padding:22px;
+  }
+  .panel{ display:flex; flex-direction:column; gap:16px; min-width:0; }
+
+  .card{
+    background:linear-gradient(180deg, var(--surface), var(--surface-2));
+    border:1px solid var(--line);
+    border-radius: var(--radius);
+    padding:16px;
+  }
+  .card h2{
+    font-size:11px; letter-spacing:0.12em; color:var(--muted);
+    margin-bottom:14px; display:flex; align-items:center; gap:8px;
+  }
+  .card h2::before{ content:""; width:3px; height:12px; background:var(--cyan); display:inline-block; border-radius:1px; }
+
+  /* ---------- Donut chart ---------- */
+  .donut-wrap{ display:flex; align-items:center; gap:14px; }
+  .donut-wrap svg{ width:96px; height:96px; flex:none; }
+  .donut-center-label{ font-family:var(--mono); font-size:18px; font-weight:700; fill:var(--text); }
+  .legend{ display:flex; flex-direction:column; gap:8px; font-family:var(--mono); font-size:12px; }
+  .legend-item{ display:flex; align-items:center; gap:8px; color:var(--muted); }
+  .legend-dot{ width:8px; height:8px; border-radius:2px; }
+  .legend-item b{ color:var(--text); margin-left:auto; font-weight:600; }
+
+  /* ---------- Frequency bars ---------- */
+  .freq-row{ display:flex; align-items:center; gap:10px; margin-bottom:10px; font-family:var(--mono); font-size:11px; }
+  .freq-row:last-child{ margin-bottom:0; }
+  .freq-label{ width:56px; color:var(--muted); letter-spacing:0.05em; }
+  .freq-track{ flex:1; height:8px; border-radius:4px; background:var(--line-soft); overflow:hidden; }
+  .freq-fill{ height:100%; border-radius:4px; transition:width 0.5s ease; }
+  .freq-pct{ width:34px; text-align:right; color:var(--muted-2); }
+
+  /* ---------- Settings ---------- */
+  .field{ display:flex; flex-direction:column; gap:6px; margin-bottom:14px; font-family:var(--mono); font-size:11px; letter-spacing:0.06em; color:var(--muted); }
+  .field:last-child{ margin-bottom:0; }
+  select{
+    background:var(--surface); color:var(--text); border:1px solid var(--line);
+    border-radius:8px; padding:9px 10px; font-family:var(--mono); font-size:12px;
+    outline:none; cursor:pointer;
+  }
+  select:focus-visible{ border-color:var(--cyan); box-shadow:0 0 0 3px var(--cyan-dim); }
+  .toggle-row{ display:flex; align-items:center; justify-content:space-between; font-family:var(--mono); font-size:11px; color:var(--muted); }
+  .switch{ position:relative; width:38px; height:20px; }
+  .switch input{ opacity:0; width:0; height:0; }
+  .slider{ position:absolute; inset:0; background:var(--line); border-radius:999px; cursor:pointer; transition:0.2s; }
+  .slider::before{ content:""; position:absolute; width:14px; height:14px; left:3px; top:3px; background:var(--muted); border-radius:50%; transition:0.2s; }
+  input:checked + .slider{ background:rgba(76,224,210,0.25); }
+  input:checked + .slider::before{ transform:translateX(18px); background:var(--cyan); }
+  input:focus-visible + .slider{ box-shadow:0 0 0 3px var(--cyan-dim); }
+
+  /* ---------- Arena ---------- */
+  .arena{
+    display:flex; flex-direction:column; align-items:center; gap:18px;
+    background:linear-gradient(180deg, var(--surface), var(--surface-2));
+    border:1px solid var(--line); border-radius:var(--radius);
+    padding:26px 20px; position:relative; overflow:hidden;
+  }
+  .arena::after{
+    content:""; position:absolute; inset:0; pointer-events:none;
+    background: radial-gradient(500px 260px at 50% 40%, rgba(76,224,210,0.05), transparent 70%);
+  }
+
+  .arena-scores{ display:flex; align-items:center; gap:24px; width:100%; justify-content:center; }
+  .score-block{ text-align:center; min-width:80px; }
+  .score-block .label{ display:block; font-family:var(--mono); font-size:11px; letter-spacing:0.15em; color:var(--muted); margin-bottom:4px;}
+  .score-block .value{ font-family:var(--mono); font-size:34px; font-weight:800; }
+  .score-block.player .value{ color:var(--cyan); text-shadow:0 0 18px rgba(76,224,210,0.35); }
+  .score-block.cpu .value{ color:var(--magenta); text-shadow:0 0 18px rgba(255,77,109,0.35); }
+  .streak-indicator{
+    font-family:var(--mono); font-size:11px; letter-spacing:0.08em; color:var(--amber);
+    border:1px solid rgba(255,176,32,0.3); background:var(--amber-dim);
+    padding:6px 12px; border-radius:999px; white-space:nowrap;
+  }
+
+  .duel-stage{
+    position:relative; width:100%; max-width:520px;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:20px 6px; min-height:150px;
+  }
+  .node{
+    width:120px; height:120px; border-radius:50%;
+    background:var(--surface); border:1.5px solid var(--line);
+    display:flex; align-items:center; justify-content:center;
+    position:relative; flex:none; transition:border-color 0.25s, box-shadow 0.25s;
+    z-index:2;
+  }
+  .node svg{ width:56px; height:56px; }
+  .node.player{ color:var(--cyan); }
+  .node.cpu{ color:var(--magenta); }
+  .node.winner{ box-shadow:0 0 0 3px currentColor, 0 0 30px currentColor; border-color:currentColor; animation:winPulse 0.9s ease; }
+  .node.loser{ opacity:0.45; filter:saturate(0.4); }
+  @keyframes winPulse{ 0%{ transform:scale(1); } 30%{ transform:scale(1.08); } 100%{ transform:scale(1); } }
+
+  .spin-ring{
+    position:absolute; inset:-6px; border-radius:50%;
+    border:2px dashed currentColor; opacity:0.5;
+    animation:spin 1.1s linear infinite;
+  }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  .vs-mark{
+    position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+    font-family:var(--mono); font-size:11px; color:var(--muted-2); letter-spacing:0.1em;
+    z-index:1;
+  }
+  .beam{
+    position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+    width:0%; height:2px; background:linear-gradient(90deg, var(--cyan), var(--amber), var(--magenta));
+    opacity:0; z-index:1; border-radius:2px;
+  }
+  .beam.active{ animation:beamSweep 0.6s ease-out forwards; }
+  @keyframes beamSweep{
+    0%{ width:0%; opacity:0; }
+    40%{ opacity:1; }
+    100%{ width:62%; opacity:0.9; box-shadow:0 0 16px var(--cyan); }
+  }
+
+  .verdict{ font-family:var(--mono); font-weight:700; font-size:15px; letter-spacing:0.06em; color:var(--muted); text-align:center; min-height:20px; transition:color 0.2s; }
+  .verdict.win{ color:var(--cyan); }
+  .verdict.lose{ color:var(--magenta); }
+  .verdict.draw{ color:var(--amber); }
+
+  .controls{ display:flex; gap:14px; flex-wrap:wrap; justify-content:center; margin-top:6px; }
+  .move-btn{
+    display:flex; flex-direction:column; align-items:center; gap:6px;
+    background:var(--surface-2); border:1px solid var(--line); border-radius:14px;
+    padding:14px 20px; color:var(--text); cursor:pointer; min-width:96px;
+    transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .move-btn svg{ width:34px; height:34px; color:var(--muted); transition:color 0.15s; }
+  .move-btn span.name{ font-family:var(--mono); font-size:11px; letter-spacing:0.1em; color:var(--muted); }
+  .move-btn kbd{
+    font-family:var(--mono); font-size:9px; color:var(--muted-2);
+    border:1px solid var(--line); border-radius:4px; padding:1px 5px; margin-top:2px;
+  }
+  .move-btn:hover:not(:disabled){ transform:translateY(-3px); border-color:var(--cyan); box-shadow:0 8px 24px rgba(76,224,210,0.12); }
+  .move-btn:hover:not(:disabled) svg{ color:var(--cyan); }
+  .move-btn:active:not(:disabled){ transform:translateY(0); }
+  .move-btn:disabled{ opacity:0.4; cursor:not-allowed; }
+  .move-btn:focus-visible{ outline:none; border-color:var(--cyan); box-shadow:0 0 0 3px var(--cyan-dim); }
+
+  /* ---------- Log ---------- */
+  .log{ display:flex; flex-direction:column-reverse; gap:6px; max-height:230px; overflow-y:auto; font-family:var(--mono); font-size:11px; }
+  .log::-webkit-scrollbar{ width:6px; }
+  .log::-webkit-scrollbar-thumb{ background:var(--line); border-radius:3px; }
+  .log-empty{ color:var(--muted-2); text-align:center; padding:20px 0; }
+  .log-item{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:7px 9px; border-radius:7px; background:var(--surface); border:1px solid var(--line-soft);
+  }
+  .log-item .l-round{ color:var(--muted-2); width:26px; }
+  .log-item .l-moves{ color:var(--muted); flex:1; text-align:center; }
+  .log-item .l-result{ font-weight:700; width:50px; text-align:right; }
+  .log-item .l-result.win{ color:var(--cyan); }
+  .log-item .l-result.lose{ color:var(--magenta); }
+  .log-item .l-result.draw{ color:var(--amber); }
+
+  .lifetime-stats{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px; }
+  .lt-item{ background:var(--surface); border:1px solid var(--line-soft); border-radius:8px; padding:10px; text-align:center; }
+  .lt-item .lt-val{ font-family:var(--mono); font-weight:800; font-size:18px; }
+  .lt-item .lt-lbl{ font-family:var(--mono); font-size:9px; letter-spacing:0.08em; color:var(--muted); margin-top:2px; }
+  .text-btn{
+    width:100%; background:transparent; border:1px solid var(--line); color:var(--muted);
+    font-family:var(--mono); font-size:10px; letter-spacing:0.06em; padding:9px; border-radius:8px; cursor:pointer;
+    transition:border-color 0.15s, color 0.15s;
+  }
+  .text-btn:hover{ border-color:var(--magenta); color:var(--magenta); }
+  .text-btn:focus-visible{ outline:none; border-color:var(--cyan); }
+
+  /* ---------- Footer ---------- */
+  .footer{
+    display:flex; align-items:center; justify-content:center; gap:14px;
+    padding:16px; border-top:1px solid var(--line-soft); flex-wrap:wrap;
+    font-family:var(--mono); font-size:11px; color:var(--muted-2);
+  }
+  .footer a{ color:var(--muted); text-decoration:none; border-bottom:1px dotted var(--line); }
+  .footer a:hover{ color:var(--cyan); border-color:var(--cyan); }
+  .footer .dot{ opacity:0.4; }
+
+  /* ---------- Modal ---------- */
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(5,6,9,0.75); backdrop-filter:blur(4px);
+    display:flex; align-items:center; justify-content:center; z-index:50;
+    opacity:0; pointer-events:none; transition:opacity 0.25s;
+  }
+  .modal-overlay.show{ opacity:1; pointer-events:auto; }
+  .modal{
+    background:var(--surface); border:1px solid var(--line); border-radius:16px;
+    padding:32px; width:min(90vw, 380px); text-align:center;
+    transform:translateY(10px) scale(0.97); transition:transform 0.25s;
+  }
+  .modal-overlay.show .modal{ transform:translateY(0) scale(1); }
+  .modal h3{ font-size:12px; letter-spacing:0.15em; color:var(--muted); margin-bottom:10px; }
+  .modal .modal-result{ font-size:26px; font-weight:800; margin-bottom:6px; }
+  .modal .modal-sub{ font-family:var(--sans); font-size:13px; color:var(--muted); margin-bottom:22px; }
+  .modal button{
+    background:var(--cyan); color:#03110f; border:none; border-radius:9px;
+    font-family:var(--mono); font-weight:700; font-size:12px; letter-spacing:0.06em;
+    padding:12px 20px; cursor:pointer; width:100%;
+  }
+  .modal button:hover{ filter:brightness(1.08); }
+
+  /* ---------- Particle canvas ---------- */
+  #fxCanvas{ position:fixed; inset:0; pointer-events:none; z-index:40; }
+
+  /* ---------- Responsive ---------- */
+  @media (max-width: 1060px){
+    .layout{ grid-template-columns:1fr; max-width:640px; }
+    .panel-left, .panel-right{ order:2; }
+    .arena{ order:1; }
+  }
+  @media (max-width:480px){
+    .node{ width:92px; height:92px; }
+    .node svg{ width:42px; height:42px; }
+    .move-btn{ min-width:78px; padding:12px 14px; }
+    .duel-stage{ padding:10px 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ animation-duration:0.001s !important; transition-duration:0.001s !important; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <div class="brand">RPS<span>://</span>PROTOCOL</div>
+    <div class="topbar-meta">
+      <span class="badge live" id="modeBadge">ADAPTIVE AI</span>
+      <span class="badge" id="sessionBadge">SESSION #0001</span>
+    </div>
+  </header>
+
+  <main class="layout">
+
+    <!-- LEFT PANEL -->
+    <aside class="panel panel-left">
+      <section class="card">
+        <h2>MATCH OUTCOME</h2>
+        <div class="donut-wrap">
+          <svg viewBox="0 0 120 120">
+            <circle cx="60" cy="60" r="50" fill="none" stroke="var(--line-soft)" stroke-width="12"/>
+            <circle id="segWin" cx="60" cy="60" r="50" fill="none" stroke="var(--cyan)" stroke-width="12" stroke-linecap="round" transform="rotate(-90 60 60)" stroke-dasharray="0 314"/>
+            <circle id="segDraw" cx="60" cy="60" r="50" fill="none" stroke="var(--amber)" stroke-width="12" stroke-linecap="round" transform="rotate(-90 60 60)" stroke-dasharray="0 314"/>
+            <circle id="segLoss" cx="60" cy="60" r="50" fill="none" stroke="var(--magenta)" stroke-width="12" stroke-linecap="round" transform="rotate(-90 60 60)" stroke-dasharray="0 314"/>
+            <text id="donutLabel" x="60" y="66" text-anchor="middle" class="donut-center-label">0%</text>
+          </svg>
+          <div class="legend">
+            <div class="legend-item"><span class="legend-dot" style="background:var(--cyan)"></span>Wins<b id="lgWin">0</b></div>
+            <div class="legend-item"><span class="legend-dot" style="background:var(--amber)"></span>Draws<b id="lgDraw">0</b></div>
+            <div class="legend-item"><span class="legend-dot" style="background:var(--magenta)"></span>Losses<b id="lgLoss">0</b></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>MOVE FREQUENCY</h2>
+        <div class="freq-row">
+          <span class="freq-label">ROCK</span>
+          <div class="freq-track"><div class="freq-fill" id="freqRock" style="width:0%;background:var(--cyan)"></div></div>
+          <span class="freq-pct" id="freqRockPct">0%</span>
+        </div>
+        <div class="freq-row">
+          <span class="freq-label">PAPER</span>
+          <div class="freq-track"><div class="freq-fill" id="freqPaper" style="width:0%;background:var(--amber)"></div></div>
+          <span class="freq-pct" id="freqPaperPct">0%</span>
+        </div>
+        <div class="freq-row">
+          <span class="freq-label">SCISSORS</span>
+          <div class="freq-track"><div class="freq-fill" id="freqScissors" style="width:0%;background:var(--magenta)"></div></div>
+          <span class="freq-pct" id="freqScissorsPct">0%</span>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>CONFIGURATION</h2>
+        <div class="field">
+          OPPONENT ALGORITHM
+          <select id="aiMode">
+            <option value="adaptive">Adaptive (pattern-learning)</option>
+            <option value="random">Random</option>
+            <option value="mirror">Mirror (copies last move)</option>
+          </select>
+        </div>
+        <div class="field">
+          MATCH LENGTH
+          <select id="matchLength">
+            <option value="0">Endless</option>
+            <option value="5">Best of 5</option>
+            <option value="7" selected>Best of 7</option>
+            <option value="11">Best of 11</option>
+          </select>
+        </div>
+        <div class="toggle-row">
+          SOUND FX
+          <label class="switch">
+            <input type="checkbox" id="soundToggle" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+      </section>
+    </aside>
+
+    <!-- ARENA -->
+    <section class="arena">
+      <div class="arena-scores">
+        <div class="score-block player">
+          <span class="label">YOU</span>
+          <span class="value" id="playerScore">0</span>
+        </div>
+        <div class="streak-indicator" id="streakIndicator">STREAK · 0</div>
+        <div class="score-block cpu">
+          <span class="label">CPU</span>
+          <span class="value" id="cpuScore">0</span>
+        </div>
+      </div>
+
+      <div class="duel-stage">
+        <div class="node player" id="playerNode"></div>
+        <span class="vs-mark">VS</span>
+        <div class="beam" id="beam"></div>
+        <div class="node cpu" id="cpuNode"></div>
+      </div>
+
+      <div class="verdict" id="verdict">CHOOSE YOUR MOVE TO BEGIN</div>
+
+      <div class="controls" id="controls">
+        <button class="move-btn" data-move="rock">
+          <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round" stroke-linecap="round">
+            <polygon points="50,8 88,30 88,70 50,92 12,70 12,30"/>
+            <polyline points="50,8 50,50 88,30"/>
+            <polyline points="50,50 12,30"/>
+            <polyline points="50,50 50,92"/>
+          </svg>
+          <span class="name">ROCK</span>
+          <kbd>1</kbd>
+        </button>
+        <button class="move-btn" data-move="paper">
+          <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round" stroke-linecap="round">
+            <path d="M20,10 H65 L80,25 V90 H20 Z"/>
+            <path d="M65,10 V25 H80"/>
+            <line x1="30" y1="45" x2="70" y2="45"/>
+            <line x1="30" y1="58" x2="70" y2="58"/>
+            <line x1="30" y1="71" x2="55" y2="71"/>
+          </svg>
+          <span class="name">PAPER</span>
+          <kbd>2</kbd>
+        </button>
+        <button class="move-btn" data-move="scissors">
+          <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round" stroke-linecap="round">
+            <circle cx="50" cy="50" r="5" fill="currentColor" stroke="none"/>
+            <line x1="50" y1="50" x2="85" y2="20"/>
+            <line x1="50" y1="50" x2="85" y2="80"/>
+            <circle cx="20" cy="25" r="10"/>
+            <circle cx="20" cy="75" r="10"/>
+            <line x1="27" y1="30" x2="46" y2="47"/>
+            <line x1="27" y1="70" x2="46" y2="53"/>
+          </svg>
+          <span class="name">SCISSORS</span>
+          <kbd>3</kbd>
+        </button>
+      </div>
+    </section>
+
+    <!-- RIGHT PANEL -->
+    <aside class="panel panel-right">
+      <section class="card log-card">
+        <h2>MATCH LOG</h2>
+        <div class="log" id="log">
+          <div class="log-empty">No rounds played yet</div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>LIFETIME</h2>
+        <div class="lifetime-stats">
+          <div class="lt-item"><div class="lt-val" id="ltRounds">0</div><div class="lt-lbl">ROUNDS</div></div>
+          <div class="lt-item"><div class="lt-val" id="ltWinRate">0%</div><div class="lt-lbl">WIN RATE</div></div>
+          <div class="lt-item"><div class="lt-val" id="ltBestStreak">0</div><div class="lt-lbl">BEST STREAK</div></div>
+          <div class="lt-item"><div class="lt-val" id="ltMatches">0</div><div class="lt-lbl">MATCHES</div></div>
+        </div>
+        <button class="text-btn" id="resetLifetime">RESET LIFETIME DATA</button>
+      </section>
+    </aside>
+
+  </main>
+
+  <footer class="footer">
+    <span id="newMatchFooterBtn" style="cursor:pointer;">↻ NEW MATCH</span>
+    <span class="dot">·</span>
+    <span>Built by <a href="https://github.com/mohdanas-hash" target="_blank" rel="noopener">Mohd Anas</a></span>
+  </footer>
+</div>
+
+<canvas id="fxCanvas"></canvas>
+
+<div class="modal-overlay" id="matchModal">
+  <div class="modal">
+    <h3>MATCH COMPLETE</h3>
+    <div class="modal-result" id="modalResult">—</div>
+    <div class="modal-sub" id="modalSub">—</div>
+    <button id="rematchBtn">START NEW MATCH</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------------- Icon templates ---------------- */
+  const ICONS = {
+    rock: `<svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round" stroke-linecap="round">
+      <polygon points="50,8 88,30 88,70 50,92 12,70 12,30"/>
+      <polyline points="50,8 50,50 88,30"/><polyline points="50,50 12,30"/><polyline points="50,50 50,92"/>
+    </svg>`,
+    paper: `<svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round" stroke-linecap="round">
+      <path d="M20,10 H65 L80,25 V90 H20 Z"/><path d="M65,10 V25 H80"/>
+      <line x1="30" y1="45" x2="70" y2="45"/><line x1="30" y1="58" x2="70" y2="58"/><line x1="30" y1="71" x2="55" y2="71"/>
+    </svg>`,
+    scissors: `<svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round" stroke-linecap="round">
+      <circle cx="50" cy="50" r="5" fill="currentColor" stroke="none"/>
+      <line x1="50" y1="50" x2="85" y2="20"/><line x1="50" y1="50" x2="85" y2="80"/>
+      <circle cx="20" cy="25" r="10"/><circle cx="20" cy="75" r="10"/>
+      <line x1="27" y1="30" x2="46" y2="47"/><line x1="27" y1="70" x2="46" y2="53"/>
+    </svg>`,
+    hidden: `<div class="spin-ring"></div><svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="5"><circle cx="50" cy="50" r="4" fill="currentColor" stroke="none"/></svg>`
+  };
+
+  const MOVES = ['rock','paper','scissors'];
+  const BEATS = { rock:'scissors', paper:'rock', scissors:'paper' }; // key beats value
+
+  /* ---------------- DOM refs ---------------- */
+  const $ = (id) => document.getElementById(id);
+  const playerNode = $('playerNode'), cpuNode = $('cpuNode');
+  const verdictEl = $('verdict'), beamEl = $('beam');
+  const playerScoreEl = $('playerScore'), cpuScoreEl = $('cpuScore');
+  const streakEl = $('streakIndicator');
+  const controlsEl = $('controls');
+  const logEl = $('log');
+  const aiModeSel = $('aiMode'), matchLenSel = $('matchLength'), soundToggle = $('soundToggle');
+  const modeBadge = $('modeBadge');
+  const modal = $('matchModal'), modalResult = $('modalResult'), modalSub = $('modalSub'), rematchBtn = $('rematchBtn');
+  const sessionBadge = $('sessionBadge');
+
+  /* ---------------- State ---------------- */
+  let match = { player:0, cpu:0, draws:0, streak:0, round:0, history:[], moveCounts:{rock:0,paper:0,scissors:0}, locked:false, over:false };
+
+  const LT_KEY = 'rps_protocol_lifetime_v1';
+  function loadLifetime(){
+    try{
+      const raw = localStorage.getItem(LT_KEY);
+      if(raw) return JSON.parse(raw);
+    }catch(e){}
+    return { rounds:0, wins:0, losses:0, draws:0, bestStreak:0, matches:0 };
+  }
+  let lifetime = loadLifetime();
+  function saveLifetime(){ try{ localStorage.setItem(LT_KEY, JSON.stringify(lifetime)); }catch(e){} }
+
+  sessionBadge.textContent = 'SESSION #' + String(Math.floor(Math.random()*9000)+1000);
+
+  playerNode.innerHTML = ICONS.hidden;
+  cpuNode.innerHTML = ICONS.hidden;
+
+  /* ---------------- Sound (WebAudio synth, no assets) ---------------- */
+  let actx = null;
+  function ctx(){ if(!actx){ try{ actx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } return actx; }
+  function tone(freq, dur, type, gainAmt, delay){
+    if(!soundToggle.checked) return;
+    const c = ctx(); if(!c) return;
+    const t0 = c.currentTime + (delay||0);
+    const osc = c.createOscillator(); const gain = c.createGain();
+    osc.type = type||'sine'; osc.frequency.setValueAtTime(freq, t0);
+    gain.gain.setValueAtTime(0, t0);
+    gain.gain.linearRampToValueAtTime(gainAmt||0.15, t0+0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, t0+dur);
+    osc.connect(gain); gain.connect(c.destination);
+    osc.start(t0); osc.stop(t0+dur+0.02);
+  }
+  const sfx = {
+    click: () => tone(440,0.08,'square',0.08),
+    scan: () => { tone(220,0.5,'sawtooth',0.03); },
+    win: () => { tone(523.25,0.12,'triangle',0.14,0); tone(659.25,0.12,'triangle',0.14,0.09); tone(783.99,0.22,'triangle',0.16,0.18); },
+    lose: () => { tone(200,0.28,'sawtooth',0.12,0); tone(140,0.32,'sawtooth',0.12,0.12); },
+    draw: () => { tone(330,0.18,'sine',0.1,0); }
+  };
+
+  /* ---------------- AI logic ---------------- */
+  // Order-1 Markov: given the player's previous move, predict most likely next move
+  const transitions = { rock:{rock:0,paper:0,scissors:0}, paper:{rock:0,paper:0,scissors:0}, scissors:{rock:0,paper:0,scissors:0} };
+
+  function counterTo(move){
+    // returns the move that beats `move`
+    return Object.keys(BEATS).find(k => BEATS[k] === move);
+  }
+
+  function getAiMove(){
+    const mode = aiModeSel.value;
+    if(mode === 'random' || match.history.length === 0){
+      return MOVES[Math.floor(Math.random()*3)];
+    }
+    if(mode === 'mirror'){
+      return match.history[match.history.length-1].player;
+    }
+    // adaptive
+    const last = match.history[match.history.length-1].player;
+    const t = transitions[last];
+    const total = t.rock + t.paper + t.scissors;
+    if(total < 2){
+      return MOVES[Math.floor(Math.random()*3)];
+    }
+    let predicted = 'rock', best = -1;
+    MOVES.forEach(m => { if(t[m] > best){ best = t[m]; predicted = m; } });
+    return counterTo(predicted);
+  }
+
+  function recordTransition(){
+    if(match.history.length >= 2){
+      const prev = match.history[match.history.length-2].player;
+      const curr = match.history[match.history.length-1].player;
+      transitions[prev][curr]++;
+    }
+  }
+
+  /* ---------------- Particles ---------------- */
+  const canvas = $('fxCanvas'), pctx = canvas.getContext('2d');
+  function resizeCanvas(){ canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+  resizeCanvas(); window.addEventListener('resize', resizeCanvas);
+  let particles = [];
+  function burst(x, y, color, count){
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if(reduced) return;
+    for(let i=0;i<(count||28);i++){
+      const angle = Math.random()*Math.PI*2;
+      const speed = 2 + Math.random()*4;
+      particles.push({
+        x, y, vx: Math.cos(angle)*speed, vy: Math.sin(angle)*speed - 1,
+        life: 1, decay: 0.012 + Math.random()*0.015, size: 2+Math.random()*3, color
+      });
+    }
+  }
+  function animateParticles(){
+    pctx.clearRect(0,0,canvas.width,canvas.height);
+    particles.forEach(p => {
+      p.x += p.vx; p.y += p.vy; p.vy += 0.05; p.life -= p.decay;
+      pctx.globalAlpha = Math.max(p.life,0);
+      pctx.fillStyle = p.color;
+      pctx.fillRect(p.x, p.y, p.size, p.size);
+    });
+    particles = particles.filter(p => p.life > 0);
+    pctx.globalAlpha = 1;
+    requestAnimationFrame(animateParticles);
+  }
+  animateParticles();
+
+  function nodeCenter(el){
+    const r = el.getBoundingClientRect();
+    return { x: r.left + r.width/2, y: r.top + r.height/2 };
+  }
+
+  /* ---------------- Rendering ---------------- */
+  function renderScores(){
+    playerScoreEl.textContent = match.player;
+    cpuScoreEl.textContent = match.cpu;
+    streakEl.textContent = 'STREAK · ' + match.streak;
+  }
+
+  function renderDonut(){
+    const total = lifetime.wins + lifetime.losses + lifetime.draws;
+    const C = 2*Math.PI*50;
+    const winLen = total ? (lifetime.wins/total)*C : 0;
+    const drawLen = total ? (lifetime.draws/total)*C : 0;
+    const lossLen = total ? (lifetime.losses/total)*C : 0;
+    $('segWin').setAttribute('stroke-dasharray', `${winLen} ${C-winLen}`);
+    $('segWin').setAttribute('stroke-dashoffset', '0');
+    $('segDraw').setAttribute('stroke-dasharray', `${drawLen} ${C-drawLen}`);
+    $('segDraw').setAttribute('stroke-dashoffset', String(-winLen));
+    $('segLoss').setAttribute('stroke-dasharray', `${lossLen} ${C-lossLen}`);
+    $('segLoss').setAttribute('stroke-dashoffset', String(-(winLen+drawLen)));
+    $('donutLabel').textContent = total ? Math.round((lifetime.wins/total)*100)+'%' : '0%';
+    $('lgWin').textContent = lifetime.wins;
+    $('lgDraw').textContent = lifetime.draws;
+    $('lgLoss').textContent = lifetime.losses;
+  }
+
+  function renderFreq(){
+    const c = match.moveCounts;
+    const total = c.rock + c.paper + c.scissors;
+    const pct = (n) => total ? Math.round((n/total)*100) : 0;
+    $('freqRock').style.width = pct(c.rock)+'%'; $('freqRockPct').textContent = pct(c.rock)+'%';
+    $('freqPaper').style.width = pct(c.paper)+'%'; $('freqPaperPct').textContent = pct(c.paper)+'%';
+    $('freqScissors').style.width = pct(c.scissors)+'%'; $('freqScissorsPct').textContent = pct(c.scissors)+'%';
+  }
+
+  function renderLifetimePanel(){
+    $('ltRounds').textContent = lifetime.rounds;
+    const totalDecisive = lifetime.wins + lifetime.losses;
+    $('ltWinRate').textContent = (lifetime.wins+lifetime.losses+lifetime.draws) ? Math.round((lifetime.wins/(lifetime.wins+lifetime.losses+lifetime.draws))*100)+'%' : '0%';
+    $('ltBestStreak').textContent = lifetime.bestStreak;
+    $('ltMatches').textContent = lifetime.matches;
+  }
+
+  function addLogEntry(round, pMove, cMove, result){
+    if(logEl.querySelector('.log-empty')) logEl.innerHTML = '';
+    const div = document.createElement('div');
+    div.className = 'log-item';
+    const resLabel = result === 'win' ? 'WIN' : result === 'lose' ? 'LOSS' : 'DRAW';
+    div.innerHTML = `<span class="l-round">#${round}</span><span class="l-moves">${pMove.toUpperCase()} vs ${cMove.toUpperCase()}</span><span class="l-result ${result}">${resLabel}</span>`;
+    logEl.appendChild(div);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function updateModeBadge(){
+    const labels = { adaptive:'ADAPTIVE AI', random:'RANDOM AI', mirror:'MIRROR AI' };
+    modeBadge.textContent = labels[aiModeSel.value];
+  }
+
+  /* ---------------- Core round logic ---------------- */
+  function decide(p, c){
+    if(p === c) return 'draw';
+    return BEATS[p] === c ? 'win' : 'lose';
+  }
+
+  function setButtonsDisabled(disabled){
+    controlsEl.querySelectorAll('.move-btn').forEach(b => b.disabled = disabled);
+  }
+
+  function playRound(playerMove){
+    if(match.locked || match.over) return;
+    match.locked = true;
+    setButtonsDisabled(true);
+    sfx.click();
+
+    playerNode.innerHTML = ICONS.hidden;
+    cpuNode.innerHTML = ICONS.hidden;
+    playerNode.classList.remove('winner','loser');
+    cpuNode.classList.remove('winner','loser');
+    verdictEl.className = 'verdict';
+    verdictEl.textContent = 'ANALYZING PATTERN...';
+    sfx.scan();
+
+    beamEl.classList.remove('active');
+    void beamEl.offsetWidth; // restart animation
+    beamEl.classList.add('active');
+
+    const aiMove = getAiMove();
+
+    setTimeout(() => {
+      playerNode.innerHTML = ICONS[playerMove];
+      cpuNode.innerHTML = ICONS[aiMove];
+
+      const result = decide(playerMove, aiMove);
+      match.round++;
+      match.history.push({ player: playerMove, cpu: aiMove, result });
+      match.moveCounts[playerMove]++;
+      recordTransition();
+
+      lifetime.rounds++;
+
+      if(result === 'win'){
+        match.player++; match.streak++; lifetime.wins++;
+        if(match.streak > lifetime.bestStreak) lifetime.bestStreak = match.streak;
+        verdictEl.textContent = 'YOU WIN THIS ROUND'; verdictEl.classList.add('win');
+        playerNode.classList.add('winner'); cpuNode.classList.add('loser');
+        sfx.win();
+        const c = nodeCenter(playerNode); burst(c.x, c.y, '#4ce0d2');
+      } else if(result === 'lose'){
+        match.cpu++; match.streak = 0; lifetime.losses++;
+        verdictEl.textContent = 'CPU WINS THIS ROUND'; verdictEl.classList.add('lose');
+        cpuNode.classList.add('winner'); playerNode.classList.add('loser');
+        sfx.lose();
+        const c = nodeCenter(cpuNode); burst(c.x, c.y, '#ff4d6d');
+      } else {
+        match.draws++; lifetime.draws++;
+        verdictEl.textContent = 'DRAW — NO SIGNAL'; verdictEl.classList.add('draw');
+        sfx.draw();
+      }
+
+      renderScores(); renderDonut(); renderFreq(); renderLifetimePanel(); saveLifetime();
+      addLogEntry(match.round, playerMove, aiMove, result);
+
+      const target = parseInt(matchLenSel.value, 10);
+      const majority = target ? Math.ceil(target/2) : 0;
+
+      setTimeout(() => {
+        if(target && (match.player >= majority || match.cpu >= majority)){
+          endMatch();
+        } else {
+          match.locked = false;
+          setButtonsDisabled(false);
+          if(!match.over) verdictEl.textContent = 'CHOOSE YOUR NEXT MOVE';
+        }
+      }, 900);
+
+    }, 650);
+  }
+
+  function endMatch(){
+    match.over = true;
+    lifetime.matches++;
+    saveLifetime(); renderLifetimePanel();
+    const won = match.player > match.cpu;
+    modalResult.textContent = won ? 'VICTORY' : (match.player === match.cpu ? 'STALEMATE' : 'DEFEAT');
+    modalResult.style.color = won ? 'var(--cyan)' : (match.player === match.cpu ? 'var(--amber)' : 'var(--magenta)');
+    modalSub.textContent = `Final score ${match.player} – ${match.cpu} over ${match.round} rounds. Best streak this match: ${maxStreakThisMatch()}.`;
+    modal.classList.add('show');
+  }
+
+  function maxStreakThisMatch(){
+    let cur = 0, max = 0;
+    match.history.forEach(h => { if(h.result === 'win'){ cur++; max = Math.max(max,cur); } else { cur = 0; } });
+    return max;
+  }
+
+  function newMatch(){
+    match = { player:0, cpu:0, draws:0, streak:0, round:0, history:[], moveCounts:{rock:0,paper:0,scissors:0}, locked:false, over:false };
+    renderScores(); renderFreq();
+    playerNode.innerHTML = ICONS.hidden; cpuNode.innerHTML = ICONS.hidden;
+    playerNode.classList.remove('winner','loser'); cpuNode.classList.remove('winner','loser');
+    verdictEl.className = 'verdict';
+    verdictEl.textContent = 'CHOOSE YOUR MOVE TO BEGIN';
+    logEl.innerHTML = '<div class="log-empty">No rounds played yet</div>';
+    setButtonsDisabled(false);
+    modal.classList.remove('show');
+  }
+
+  /* ---------------- Event wiring ---------------- */
+  controlsEl.querySelectorAll('.move-btn').forEach(btn => {
+    btn.addEventListener('click', () => playRound(btn.dataset.move));
+  });
+
+  window.addEventListener('keydown', (e) => {
+    if(modal.classList.contains('show')) return;
+    const map = { '1':'rock', '2':'paper', '3':'scissors', 'r':'rock', 'p':'paper', 's':'scissors' };
+    const mv = map[e.key.toLowerCase()];
+    if(mv) playRound(mv);
+  });
+
+  aiModeSel.addEventListener('change', updateModeBadge);
+  rematchBtn.addEventListener('click', newMatch);
+  $('newMatchFooterBtn').addEventListener('click', newMatch);
+  $('resetLifetime').addEventListener('click', () => {
+    if(confirm('Reset all lifetime stats? This cannot be undone.')){
+      lifetime = { rounds:0, wins:0, losses:0, draws:0, bestStreak:0, matches:0 };
+      saveLifetime(); renderLifetimePanel(); renderDonut();
+    }
+  });
+
+  /* ---------------- Init ---------------- */
+  updateModeBadge();
+  renderScores(); renderDonut(); renderFreq(); renderLifetimePanel();
+})();
+</script>
+</body>
+</html>
